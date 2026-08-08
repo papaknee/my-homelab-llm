@@ -11,4 +11,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 11434
 
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+  CMD ollama list >/dev/null 2>&1 || exit 1
+
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

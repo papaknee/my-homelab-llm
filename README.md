@@ -83,6 +83,20 @@ curl http://localhost:11434/api/tags
 
 You should see both models listed.
 
+### Check container health
+
+```bash
+docker ps
+```
+
+After startup finishes, the container status should show `healthy`.
+
+You can also inspect health details directly:
+
+```bash
+docker inspect --format='{{json .State.Health}}' homelab-llm
+```
+
 ---
 
 ## 4. Find the IP address for other devices on your LAN
@@ -143,7 +157,62 @@ docker compose up -d --build
 
 ---
 
-## 6. Home Assistant setup
+## 6. Make it start automatically when your computer starts
+
+This repo already sets:
+
+```yaml
+restart: unless-stopped
+```
+
+That means the container will come back automatically after Docker itself starts.
+
+### Windows
+
+1. Open **Docker Desktop**
+2. Go to **Settings**
+3. Enable **Start Docker Desktop when you log in**
+4. Start the container once:
+
+```bash
+docker compose up -d
+```
+
+After that, Docker Desktop starts at login and the container should restart automatically.
+
+### macOS
+
+1. Open **Docker Desktop**
+2. Go to **Settings**
+3. Enable **Start Docker Desktop when you log in**
+4. Start the container once:
+
+```bash
+docker compose up -d
+```
+
+After that, the container should restart when Docker Desktop launches.
+
+### Linux
+
+Make sure Docker starts on boot:
+
+```bash
+sudo systemctl enable docker
+sudo systemctl start docker
+```
+
+Then start the container once:
+
+```bash
+docker compose up -d
+```
+
+Because the service uses `restart: unless-stopped`, it should come back after reboots as long as Docker starts normally.
+
+---
+
+## 7. Home Assistant setup
 
 Home Assistant can use Ollama over your LAN.
 
@@ -179,7 +248,7 @@ If you want Home Assistant isolated from coding usage, keep Home Assistant confi
 
 ---
 
-## 7. VS Code setup
+## 8. VS Code setup
 
 Any VS Code extension that supports Ollama or an OpenAI-compatible local endpoint can use this server.
 
@@ -242,7 +311,7 @@ If your extension supports separate chat and autocomplete/code models, assign:
 
 ---
 
-## 8. Common commands
+## 9. Common commands
 
 ### Start
 
@@ -262,6 +331,19 @@ docker compose down
 docker compose logs -f
 ```
 
+### Check if the container is healthy
+
+```bash
+docker ps --filter name=homelab-llm
+```
+
+### Check Ollama directly inside the container
+
+```bash
+docker compose exec homelab-llm ollama ps
+docker compose exec homelab-llm ollama list
+```
+
 ### List installed models
 
 ```bash
@@ -278,7 +360,7 @@ This makes the setup broadly extensible for future Home Assistant or coding work
 
 ---
 
-## 9. Changing the default models
+## 10. Changing the default models
 
 You can override either default model at startup:
 
@@ -294,11 +376,102 @@ GENERAL_MODEL=qwen2.5:14b CODING_MODEL=deepseek-coder:33b docker compose up -d -
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 ### The first start takes a long time
 
 That is normal. The models are several gigabytes each.
+
+### Docker says it cannot connect to the daemon
+
+Docker is probably not running yet.
+
+- **Windows/macOS:** open Docker Desktop and wait until it says it is running
+- **Linux:** run:
+
+```bash
+sudo systemctl start docker
+```
+
+Then try again:
+
+```bash
+docker compose up -d --build
+```
+
+### Port 11434 is already in use
+
+Another app or container is already using the Ollama port.
+
+Find the conflict:
+
+```bash
+docker ps
+```
+
+If needed, change the port mapping in `docker-compose.yml`, for example:
+
+```yaml
+ports:
+  - "11435:11434"
+```
+
+Then connect clients to:
+
+```text
+http://YOUR-COMPUTER-IP:11435
+```
+
+### The container starts but becomes unhealthy
+
+Check:
+
+```bash
+docker logs homelab-llm
+docker inspect --format='{{json .State.Health}}' homelab-llm
+```
+
+Common causes:
+
+- the host is out of RAM
+- the disk is full
+- Ollama is still busy downloading large models
+
+If this happens during first startup, wait a bit longer and check logs again.
+
+### The model download seems stuck
+
+Check logs:
+
+```bash
+docker compose logs -f
+```
+
+Possible causes:
+
+- slow internet
+- temporary Ollama registry issue
+- not enough disk space
+
+You can restart the container:
+
+```bash
+docker compose restart
+```
+
+### The host is running out of disk space
+
+Check Docker disk usage:
+
+```bash
+docker system df
+```
+
+This setup needs enough room for:
+
+- Ollama image
+- downloaded models
+- future models you may add
 
 ### Another device cannot connect
 
@@ -306,8 +479,62 @@ Check:
 
 - the server computer is powered on
 - Docker container is running
+- the container is `healthy`
 - port `11434` is open in the firewall
 - you used the correct LAN IP address
+
+Test from the server itself first:
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+Then test from another machine on the LAN:
+
+```bash
+curl http://YOUR-COMPUTER-IP:11434/api/tags
+```
+
+### Home Assistant cannot find Ollama
+
+Check:
+
+- you entered `http://YOUR-COMPUTER-IP:11434`
+- Home Assistant and the Ollama machine are on the same network
+- the container is running and healthy
+- your firewall is not blocking the connection
+
+### VS Code extension cannot connect
+
+Check:
+
+- the extension is using the correct base URL
+- you used `http://YOUR-COMPUTER-IP:11434`
+- the selected model name exactly matches the installed model
+
+You can confirm the available models with:
+
+```bash
+docker compose exec homelab-llm ollama list
+```
+
+### GPU is not being used
+
+Check:
+
+1. NVIDIA drivers are installed
+2. NVIDIA Container Toolkit is installed
+3. You started with the GPU override file:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+
+Then verify:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml exec homelab-llm ollama ps
+```
 
 ### The coding model feels slow
 
@@ -316,6 +543,23 @@ That usually means:
 - CPU-only mode is being used
 - there is not enough GPU VRAM
 - the host does not have enough RAM
+
+### It does not start automatically after reboot
+
+Check:
+
+- Docker Desktop is set to launch at login on Windows/macOS
+- Docker service is enabled on Linux:
+
+```bash
+sudo systemctl status docker
+```
+
+- the container still has the `unless-stopped` restart policy:
+
+```bash
+docker inspect --format='{{.HostConfig.RestartPolicy.Name}}' homelab-llm
+```
 
 ### I want to reset everything
 
