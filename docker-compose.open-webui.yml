@@ -1,0 +1,18 @@
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    depends_on:
+      - homelab-llm
+    environment:
+      OLLAMA_BASE_URL: ${OPEN_WEBUI_OLLAMA_BASE_URL:-http://homelab-llm:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${OPEN_WEBUI_PORT:-3000}:8080"
+    restart: unless-stopped
+    volumes:
+      - open-webui-data:/app/backend/data
+
+volumes:
+  open-webui-data:
