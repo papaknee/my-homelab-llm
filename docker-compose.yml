@@ -8,6 +8,8 @@ services:
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
       GENERAL_MODEL: ${GENERAL_MODEL:-qwen2.5:7b-instruct-q4_K_M}
       CODING_MODEL: ${CODING_MODEL:-deepseek-coder:16b-v2-lite-instruct-q4_K_M}
+      PULL_MISSING_MODELS: ${PULL_MISSING_MODELS:-true}
+      MODEL_PULL_RETRIES: ${MODEL_PULL_RETRIES:-3}
     ports:
       - "11434:11434"
     restart: unless-stopped

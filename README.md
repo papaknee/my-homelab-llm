@@ -18,8 +18,11 @@ Ollama automatically loads and unloads models as requests change, so the coding 
 - A Docker image that starts `ollama serve`
 - LAN access on port `11434`
 - Automatic first-run download of the two default models
+- Smart startup that only pulls missing models on later restarts
 - Persistent model storage in a Docker volume
+- Model-aware health checks so `healthy` means Ollama is up and the configured default models exist
 - Optional NVIDIA GPU/CUDA enablement
+- Optional Open WebUI via Docker Compose
 
 ---
 
@@ -47,11 +50,50 @@ You need:
 - `Dockerfile` - builds the Ollama container
 - `docker-compose.yml` - normal setup
 - `docker-compose.gpu.yml` - optional NVIDIA GPU override
-- `docker/entrypoint.sh` - starts Ollama and downloads the default models
+- `docker-compose.open-webui.yml` - optional Open WebUI service
+- `docker/entrypoint.sh` - starts Ollama and only downloads missing default models
+- `docker/healthcheck.sh` - verifies Ollama is up and configured models are available
+- `.env.example` - safe local configuration template
+- `.gitignore` - keeps local-only config files out of git
+- `.dockerignore` - keeps unnecessary files out of Docker builds
 
 ---
 
-## 3. Quick start (non-technical)
+## 3. Local configuration and secrets
+
+This repo does not require any API keys by default, but future integrations might.
+
+### Safe local configuration
+
+If you want to customize ports, models, or future sensitive values:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` locally on your own machine.
+
+### Important safety rules
+
+- keep secrets only in `.env`
+- never paste secrets into `README.md`, `docker-compose.yml`, or other tracked files
+- never commit `.env`
+- check `git status` before committing anything
+
+This repo already ignores `.env` through `.gitignore`.
+
+### Do not expose this directly to the public internet
+
+This setup is intended for **your local network only**.
+
+- safe target: `http://YOUR-COMPUTER-IP:11434` on your LAN
+- unsafe target: opening port `11434` to the public internet without extra security
+
+Do not port-forward Ollama from your router unless you intentionally add authentication, TLS, and network protections.
+
+---
+
+## 4. Quick start (non-technical)
 
 Open a terminal in this folder and run:
 
@@ -91,6 +133,11 @@ docker ps
 
 After startup finishes, the container status should show `healthy`.
 
+For this repo, `healthy` means:
+
+- Ollama is responding
+- the configured default model names exist locally
+
 You can also inspect health details directly:
 
 ```bash
@@ -99,7 +146,7 @@ docker inspect --format='{{json .State.Health}}' homelab-llm
 
 ---
 
-## 4. Find the IP address for other devices on your LAN
+## 5. Find the IP address for other devices on your LAN
 
 Other computers on your network should connect to:
 
@@ -119,9 +166,11 @@ If you are unsure of your IP address:
 
 Make sure your firewall allows inbound TCP traffic on port `11434`.
 
+Do **not** expose this port directly to the public internet unless you add your own security layer.
+
 ---
 
-## 5. Enable NVIDIA GPU / CUDA
+## 6. Enable NVIDIA GPU / CUDA
 
 If your host has an NVIDIA GPU, install:
 
@@ -147,6 +196,8 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml exec homelab-llm 
 
 If GPU is enabled correctly, Ollama should use the GPU automatically when the model and system support it.
 
+This override also sets standard NVIDIA container environment variables for better compatibility across Docker/NVIDIA setups.
+
 ### Important note
 
 If you do **not** have an NVIDIA GPU, use only:
@@ -157,7 +208,7 @@ docker compose up -d --build
 
 ---
 
-## 6. Make it start automatically when your computer starts
+## 7. Make it start automatically when your computer starts
 
 This repo already sets:
 
@@ -212,7 +263,7 @@ Because the service uses `restart: unless-stopped`, it should come back after re
 
 ---
 
-## 7. Home Assistant setup
+## 8. Home Assistant setup
 
 Home Assistant can use Ollama over your LAN.
 
@@ -248,9 +299,9 @@ If you want Home Assistant isolated from coding usage, keep Home Assistant confi
 
 ---
 
-## 8. VS Code setup
+## 9. VS Code setup
 
-Any VS Code extension that supports Ollama or an OpenAI-compatible local endpoint can use this server.
+Any VS Code extension that supports **Ollama directly** can use this server.
 
 Popular options include:
 
@@ -309,9 +360,15 @@ If your extension supports separate chat and autocomplete/code models, assign:
 - chat/general assistant -> Qwen
 - code generation/agent -> DeepSeek Coder
 
+### Important compatibility note
+
+This repo exposes the **Ollama API**.
+
+Some tools that support only OpenAI-style APIs may not connect directly to Ollama. For those tools, use Open WebUI or another compatible bridge/proxy instead of assuming direct support.
+
 ---
 
-## 9. Open WebUI and phone app setup
+## 10. Open WebUI and phone app setup
 
 You can connect this Ollama server to browser-based and mobile-friendly apps too.
 
@@ -319,30 +376,36 @@ You can connect this Ollama server to browser-based and mobile-friendly apps too
 
 Open WebUI is a simple chat interface that works well on desktops, tablets, and phones.
 
-#### Start Open WebUI in Docker
+#### Start Open WebUI with Docker Compose
+
+This repo includes an optional compose file for Open WebUI.
+
+Start it with:
 
 ```bash
-docker run -d \
-  --name open-webui \
-  -p 3000:8080 \
-  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
-  -v open-webui:/app/backend/data \
-  --restart unless-stopped \
-  ghcr.io/open-webui/open-webui:main
+docker compose -f docker-compose.yml -f docker-compose.open-webui.yml up -d
 ```
 
-### If `host.docker.internal` does not work on Linux
+By default, Open WebUI will be available on:
 
-Use the host machine's LAN IP instead:
+```text
+http://YOUR-COMPUTER-IP:3000
+```
+
+The included compose file already maps `host.docker.internal` and works well on Docker Desktop plus modern Linux Docker with `host-gateway` support.
+
+#### If you need to override the Open WebUI connection
+
+Set this in your local `.env` file:
+
+```text
+OPEN_WEBUI_OLLAMA_BASE_URL=http://YOUR-COMPUTER-IP:11434
+```
+
+Then restart Open WebUI:
 
 ```bash
-docker run -d \
-  --name open-webui \
-  -p 3000:8080 \
-  -e OLLAMA_BASE_URL=http://YOUR-COMPUTER-IP:11434 \
-  -v open-webui:/app/backend/data \
-  --restart unless-stopped \
-  ghcr.io/open-webui/open-webui:main
+docker compose -f docker-compose.yml -f docker-compose.open-webui.yml up -d
 ```
 
 #### Open it in a browser or on your phone
@@ -361,7 +424,7 @@ Then choose one of these models:
 #### Check that Open WebUI is working
 
 ```bash
-docker logs open-webui
+docker compose -f docker-compose.yml -f docker-compose.open-webui.yml logs -f open-webui
 docker ps --filter name=open-webui
 ```
 
@@ -372,7 +435,7 @@ If it is healthy and reachable, you should be able to chat from any browser on y
 Many mobile apps and chat frontends can connect in one of two ways:
 
 - **Direct Ollama support**
-- **OpenAI-compatible custom server support**
+- **Browser-based access through Open WebUI**
 
 When adding your server, try:
 
@@ -389,7 +452,7 @@ deepseek-coder:16b-v2-lite-instruct-q4_K_M
 
 ### If a phone app asks for an OpenAI-style endpoint
 
-Some apps do not talk to Ollama directly. In that case, Open WebUI is usually the easier option because it provides a user-friendly interface in the browser without needing each phone app to support Ollama natively.
+Some apps do not talk to Ollama directly. In that case, Open WebUI is usually the easier option because it gives you a user-friendly browser interface without needing the app to support Ollama natively.
 
 ### Phone app checklist
 
@@ -417,7 +480,7 @@ http://localhost:3000
 
 ---
 
-## 10. Common commands
+## 11. Common commands
 
 ### Start
 
@@ -431,6 +494,12 @@ docker compose up -d
 docker compose down
 ```
 
+### Start with Open WebUI too
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.open-webui.yml up -d
+```
+
 ### Watch logs
 
 ```bash
@@ -441,6 +510,12 @@ docker compose logs -f
 
 ```bash
 docker ps --filter name=homelab-llm
+```
+
+### Check Open WebUI too
+
+```bash
+docker ps --filter name=open-webui
 ```
 
 ### Check Ollama directly inside the container
@@ -466,9 +541,9 @@ This makes the setup broadly extensible for future Home Assistant or coding work
 
 ---
 
-## 11. Changing the default models
+## 12. Changing the default models
 
-You can override either default model at startup:
+You can override either default model at startup with environment variables:
 
 ```bash
 GENERAL_MODEL=your-model CODING_MODEL=your-coding-model docker compose up -d --build
@@ -480,9 +555,21 @@ Example:
 GENERAL_MODEL=qwen2.5:14b CODING_MODEL=deepseek-coder:33b docker compose up -d --build
 ```
 
+You can also put these values in your local `.env` file so you do not have to retype them.
+
+### Optional behavior controls
+
+```bash
+PULL_MISSING_MODELS=true
+MODEL_PULL_RETRIES=3
+```
+
+- `PULL_MISSING_MODELS=true` keeps the current default behavior of downloading missing configured models
+- `MODEL_PULL_RETRIES=3` retries temporary pull failures before the container gives up
+
 ---
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 ### The first start takes a long time
 
@@ -542,6 +629,7 @@ Common causes:
 - the host is out of RAM
 - the disk is full
 - Ollama is still busy downloading large models
+- a configured model name is wrong or unavailable
 
 If this happens during first startup, wait a bit longer and check logs again.
 
@@ -564,6 +652,8 @@ You can restart the container:
 ```bash
 docker compose restart
 ```
+
+If you changed the model names, confirm they are valid Ollama model tags.
 
 ### The host is running out of disk space
 
@@ -636,9 +726,21 @@ docker ps --filter name=open-webui
 
 - the `OLLAMA_BASE_URL` is correct
 - the Ollama container is running and healthy
-- you used `host.docker.internal` on Windows/macOS or your LAN IP on Linux if needed
+- your Docker setup supports `host.docker.internal:host-gateway`, or you overrode `OPEN_WEBUI_OLLAMA_BASE_URL` in `.env`
 
 If needed, recreate Open WebUI with the correct `OLLAMA_BASE_URL`.
+
+### I accidentally created a `.env` file with sensitive data
+
+Do not commit it.
+
+Check:
+
+```bash
+git status
+```
+
+If `.env` appears there, stop and make sure it stays untracked before you commit anything else.
 
 ### A phone app cannot connect
 
