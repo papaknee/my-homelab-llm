@@ -6,7 +6,7 @@ MODE="both"
 SERVICE="homelab-llm"
 
 DEFAULT_GENERAL_MODEL="qwen2.5:7b-instruct-q4_K_M"
-DEFAULT_CODING_MODEL="deepseek-coder:16b-v2-lite-instruct-q4_K_M"
+DEFAULT_CODING_MODEL="deepseek-coder-v2:16b-lite-instruct-q4_K_M"
 
 GENERAL_MODEL=""
 CODING_MODEL=""

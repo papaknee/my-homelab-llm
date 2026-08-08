@@ -6,10 +6,22 @@ services:
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
       GENERAL_MODEL: ${GENERAL_MODEL:-qwen2.5:7b-instruct-q4_K_M}
-      CODING_MODEL: ${CODING_MODEL:-deepseek-coder:16b-v2-lite-instruct-q4_K_M}
+      CODING_MODEL: ${CODING_MODEL:-deepseek-coder-v2:16b-lite-instruct-q4_K_M}
       PULL_MISSING_MODELS: ${PULL_MISSING_MODELS:-true}
       MODEL_PULL_RETRIES: ${MODEL_PULL_RETRIES:-3}
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    # GPU is enabled by default. On hosts without an NVIDIA GPU / Container
+    # Toolkit, remove the deploy section below (and the NVIDIA_* vars above).
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     ports:
       - "11434:11434"
     restart: unless-stopped

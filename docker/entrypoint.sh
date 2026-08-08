@@ -60,7 +60,11 @@ pull_model() {
     return 0
   fi
 
-  pull_with_retries "$model_name"
+  if ! pull_with_retries "$model_name"; then
+    echo "WARNING: continuing startup without model: $model_name"
+    echo "The container will stay up but report unhealthy until the model exists."
+    return 0
+  fi
 }
 
 wait_for_server

@@ -9,7 +9,7 @@ Simple Docker-based setup for running a LAN-accessible Ollama node for:
 By default, this project downloads and keeps available these two Ollama models:
 
 - General assistant/chatbot: `qwen2.5:7b-instruct-q4_K_M`
-- Coding assistant: `deepseek-coder:16b-v2-lite-instruct-q4_K_M`
+- Coding assistant: `deepseek-coder-v2:16b-lite-instruct-q4_K_M`
 
 Ollama automatically loads and unloads models as requests change, so the coding model and Home Assistant/chat model can share the same machine without both staying in VRAM all the time.
 
@@ -49,7 +49,7 @@ You need:
 
 - `Dockerfile` - builds the Ollama container
 - `docker-compose.yml` - normal setup
-- `docker-compose.gpu.yml` - optional NVIDIA GPU override
+- `docker-compose.gpu.yml` - legacy NVIDIA GPU override (GPU is now enabled by default in `docker-compose.yml`; this file is kept for compatibility and is no longer needed)
 - `docker-compose.open-webui.yml` - optional Open WebUI service
 - `docker/entrypoint.sh` - starts Ollama and only downloads missing default models
 - `docker/healthcheck.sh` - verifies Ollama is up and configured models are available
@@ -106,7 +106,7 @@ On first start, the container will:
 1. Start Ollama
 2. Download:
    - `qwen2.5:7b-instruct-q4_K_M`
-   - `deepseek-coder:16b-v2-lite-instruct-q4_K_M`
+   - `deepseek-coder-v2:16b-lite-instruct-q4_K_M`
 3. Keep running on port `11434`
 
 ### Check that it is running
@@ -184,9 +184,11 @@ Do **not** expose this port directly to the public internet unless you add your 
 
 ---
 
-## 6. Enable NVIDIA GPU / CUDA
+## 6. NVIDIA GPU / CUDA
 
-If your host has an NVIDIA GPU, install:
+GPU acceleration is **enabled by default** in `docker-compose.yml`. If the host has an NVIDIA GPU, Ollama will use it automatically.
+
+You need:
 
 1. Latest NVIDIA driver
 2. Docker
@@ -196,29 +198,27 @@ Official NVIDIA Container Toolkit docs:
 
 https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
 
-### After that, start with the GPU override
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
-```
-
 ### Verify GPU access
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml exec homelab-llm ollama ps
+docker compose exec homelab-llm ollama ps
 ```
 
-If GPU is enabled correctly, Ollama should use the GPU automatically when the model and system support it.
+After generating a response, the model should show GPU usage. You can also check the startup logs for `library=cuda`:
 
-This override also sets standard NVIDIA container environment variables for better compatibility across Docker/NVIDIA setups.
+```bash
+docker compose logs homelab-llm | grep "inference compute"
+```
 
-### Important note
+### If you do **not** have an NVIDIA GPU
 
-If you do **not** have an NVIDIA GPU, use only:
+Edit `docker-compose.yml` and remove the `deploy:` section (and optionally the `NVIDIA_*` environment variables), then start normally:
 
 ```bash
 docker compose up -d --build
 ```
+
+The legacy `docker-compose.gpu.yml` override is still included for compatibility but is no longer required.
 
 ---
 
@@ -337,7 +337,7 @@ http://YOUR-COMPUTER-IP:11434
 Use:
 
 ```text
-deepseek-coder:16b-v2-lite-instruct-q4_K_M
+deepseek-coder-v2:16b-lite-instruct-q4_K_M
 ```
 
 ### Recommended chat model
@@ -362,7 +362,7 @@ qwen2.5:7b-instruct-q4_K_M
     {
       "title": "Homelab Code",
       "provider": "ollama",
-      "model": "deepseek-coder:16b-v2-lite-instruct-q4_K_M",
+      "model": "deepseek-coder-v2:16b-lite-instruct-q4_K_M",
       "apiBase": "http://YOUR-COMPUTER-IP:11434"
     }
   ]
@@ -433,7 +433,7 @@ http://YOUR-COMPUTER-IP:3000
 Then choose one of these models:
 
 - `qwen2.5:7b-instruct-q4_K_M` for general chat
-- `deepseek-coder:16b-v2-lite-instruct-q4_K_M` for coding help
+- `deepseek-coder-v2:16b-lite-instruct-q4_K_M` for coding help
 
 #### Check that Open WebUI is working
 
@@ -461,7 +461,7 @@ If the app asks for a model name, use one of:
 
 ```text
 qwen2.5:7b-instruct-q4_K_M
-deepseek-coder:16b-v2-lite-instruct-q4_K_M
+deepseek-coder-v2:16b-lite-instruct-q4_K_M
 ```
 
 ### If a phone app asks for an OpenAI-style endpoint
@@ -576,10 +576,14 @@ You can also put these values in your local `.env` file so you do not have to re
 ```bash
 PULL_MISSING_MODELS=true
 MODEL_PULL_RETRIES=3
+OLLAMA_MAX_LOADED_MODELS=1
 ```
 
 - `PULL_MISSING_MODELS=true` keeps the current default behavior of downloading missing configured models
 - `MODEL_PULL_RETRIES=3` retries temporary pull failures before the container gives up
+- `OLLAMA_MAX_LOADED_MODELS=1` keeps only one model in memory at a time (the default), which prevents the two default models from exceeding GPU VRAM when both are used; set higher if you have the memory headroom
+
+If a model pull fails permanently (for example, a typo in the model name), the container now logs a warning and keeps running instead of restart-looping. It will report `unhealthy` until the configured models exist locally.
 
 ---
 
