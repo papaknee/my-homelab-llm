@@ -311,7 +311,113 @@ If your extension supports separate chat and autocomplete/code models, assign:
 
 ---
 
-## 9. Common commands
+## 9. Open WebUI and phone app setup
+
+You can connect this Ollama server to browser-based and mobile-friendly apps too.
+
+### Option A: Open WebUI
+
+Open WebUI is a simple chat interface that works well on desktops, tablets, and phones.
+
+#### Start Open WebUI in Docker
+
+```bash
+docker run -d \
+  --name open-webui \
+  -p 3000:8080 \
+  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
+  -v open-webui:/app/backend/data \
+  --restart unless-stopped \
+  ghcr.io/open-webui/open-webui:main
+```
+
+### If `host.docker.internal` does not work on Linux
+
+Use the host machine's LAN IP instead:
+
+```bash
+docker run -d \
+  --name open-webui \
+  -p 3000:8080 \
+  -e OLLAMA_BASE_URL=http://YOUR-COMPUTER-IP:11434 \
+  -v open-webui:/app/backend/data \
+  --restart unless-stopped \
+  ghcr.io/open-webui/open-webui:main
+```
+
+#### Open it in a browser or on your phone
+
+On the same network, open:
+
+```text
+http://YOUR-COMPUTER-IP:3000
+```
+
+Then choose one of these models:
+
+- `qwen2.5:7b-instruct-q4_K_M` for general chat
+- `deepseek-coder:16b-v2-lite-instruct-q4_K_M` for coding help
+
+#### Check that Open WebUI is working
+
+```bash
+docker logs open-webui
+docker ps --filter name=open-webui
+```
+
+If it is healthy and reachable, you should be able to chat from any browser on your LAN, including a phone browser.
+
+### Option B: Similar phone apps
+
+Many mobile apps and chat frontends can connect in one of two ways:
+
+- **Direct Ollama support**
+- **OpenAI-compatible custom server support**
+
+When adding your server, try:
+
+```text
+http://YOUR-COMPUTER-IP:11434
+```
+
+If the app asks for a model name, use one of:
+
+```text
+qwen2.5:7b-instruct-q4_K_M
+deepseek-coder:16b-v2-lite-instruct-q4_K_M
+```
+
+### If a phone app asks for an OpenAI-style endpoint
+
+Some apps do not talk to Ollama directly. In that case, Open WebUI is usually the easier option because it provides a user-friendly interface in the browser without needing each phone app to support Ollama natively.
+
+### Phone app checklist
+
+Before trying to connect from a phone, confirm:
+
+- the phone is on the same Wi-Fi/LAN
+- the Ollama container is running and `healthy`
+- the computer firewall allows the needed port
+- you are using the correct IP address
+- you are **not** using `localhost` on the phone
+
+Use:
+
+```text
+http://YOUR-COMPUTER-IP:11434
+http://YOUR-COMPUTER-IP:3000
+```
+
+Not:
+
+```text
+http://localhost:11434
+http://localhost:3000
+```
+
+---
+
+## 10. Common commands
 
 ### Start
 
@@ -360,7 +466,7 @@ This makes the setup broadly extensible for future Home Assistant or coding work
 
 ---
 
-## 10. Changing the default models
+## 11. Changing the default models
 
 You can override either default model at startup:
 
@@ -376,7 +482,7 @@ GENERAL_MODEL=qwen2.5:14b CODING_MODEL=deepseek-coder:33b docker compose up -d -
 
 ---
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 ### The first start takes a long time
 
@@ -516,6 +622,39 @@ You can confirm the available models with:
 
 ```bash
 docker compose exec homelab-llm ollama list
+```
+
+### Open WebUI cannot connect to Ollama
+
+Check:
+
+- Open WebUI is running:
+
+```bash
+docker ps --filter name=open-webui
+```
+
+- the `OLLAMA_BASE_URL` is correct
+- the Ollama container is running and healthy
+- you used `host.docker.internal` on Windows/macOS or your LAN IP on Linux if needed
+
+If needed, recreate Open WebUI with the correct `OLLAMA_BASE_URL`.
+
+### A phone app cannot connect
+
+Check:
+
+- the phone is on the same local network
+- you used the computer's LAN IP, not `localhost`
+- the correct port is open:
+  - `11434` for Ollama
+  - `3000` for Open WebUI
+- your firewall is not blocking the connection
+
+Test the server from the phone browser first:
+
+```text
+http://YOUR-COMPUTER-IP:3000
 ```
 
 ### GPU is not being used
