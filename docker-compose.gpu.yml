@@ -1,0 +1,3 @@
+services:
+  homelab-llm:
+    gpus: all
