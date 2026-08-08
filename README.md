@@ -115,7 +115,21 @@ On first start, the container will:
 docker compose logs -f
 ```
 
-Wait until you see model pull completion messages.
+On first startup, model downloads can take a long time (often several minutes, depending on bandwidth and disk speed).
+
+If you want a simple status watcher that checks every 5 seconds and exits when downloads are done:
+
+```bash
+./scripts/watch-model-download.sh --mode both
+```
+
+If you only want to stop as soon as either model becomes available:
+
+```bash
+./scripts/watch-model-download.sh --mode one
+```
+
+Then wait until you see model pull completion messages.
 
 Then test locally:
 
